@@ -1,0 +1,20 @@
+[project]
+name = "module-template"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "AUTHOR NAME", #Add your name here
+    email = "author@email.com" } #Add your email here
+]
+requires-python = ">=3.13"
+dependencies = [
+    "click>=8.4.2",
+]
+
+[project.scripts]
+module-template = "module_template.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.8.11,<0.9.0"]
+build-backend = "uv_build"
