@@ -6,11 +6,11 @@ scientific calculation lives in project.py and input/output validation in io.py.
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
-from lin26_ais.project import project
+import click
 
+from lin26_ais.project import project
 
 # Default asset mount inside the FACTS container. Every asset path can also be
 # supplied explicitly, allowing the same entry point to run outside a container.
@@ -23,68 +23,136 @@ def _path(value: str) -> Path:
     return Path(value.replace("\\", "/"))
 
 
-def main() -> None:
-    """Parse one scenario's run options and write projection and diagnostic files."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    # FACTS invokes the module with the positional subcommand "main".
-    parser.add_argument("command", choices=["main"])
-    # The climate file contains all members of a single SSP. nsamps, when given,
-    # checks its member count; it does not request resampling of climate members.
-    parser.add_argument("--scenario", required=True)
-    parser.add_argument("--climate-data-file", type=_path, required=True)
-    parser.add_argument("--nsamps", type=int)
-    # Output may cover a subset of years, but the emulator always computes the
-    # full annual 2015-2100 record before smoothing and baseline subtraction.
-    parser.add_argument("--baseyear", type=int, default=2015)
-    parser.add_argument("--pyear-start", type=int, default=2015)
-    parser.add_argument("--pyear-end", type=int, default=2100)
-    parser.add_argument("--pyear-step", type=int, default=1)
-    # The scheme controls configuration sampling and, for high_end, temporal
-    # correlation of emulator errors. seed makes these random choices repeatable.
-    parser.add_argument("--scheme", choices=["prior", "posterior", "high_end"], default="posterior")
-    parser.add_argument("--seed", type=int, default=42)
-    # high_end alone requires a separate SSP585 climate file to screen candidate
-    # configurations, even when the requested projection uses another scenario.
-    parser.add_argument("--high-end-reference-file", type=_path)
-    # Three fitted models define the central prediction and uncertainty width;
-    # the candidate table and weights are precomputed assets, not fitted here.
-    parser.add_argument("--mean-model-file", type=_path, default=ASSET_ROOT / "models/mean_model.pkl")
-    parser.add_argument("--lower-model-file", type=_path, default=ASSET_ROOT / "models/lower_model.pkl")
-    parser.add_argument("--upper-model-file", type=_path, default=ASSET_ROOT / "models/upper_model.pkl")
-    parser.add_argument(
-        "--posterior-samples-file", type=_path, default=ASSET_ROOT / "posterior/posterior_samples.csv"
-    )
-    parser.add_argument(
-        "--posterior-weights-file", type=_path, default=ASSET_ROOT / "posterior/posterior_weights.npy"
-    )
-    # Keep the standard FACTS sea-level product separate from detailed model
-    # diagnostics such as selected parameters and conditional standard deviations.
-    parser.add_argument("--output-ais-gslr-file", type=_path, default=Path("ais-gslr.nc"))
-    parser.add_argument(
-        "--output-diagnostics-file", type=_path, default=Path("lin26-diagnostics.nc")
-    )
-    args = parser.parse_args()
+@click.command(context_settings={"auto_envvar_prefix": "LIN26", "show_default": True})
+@click.argument("command", type=click.Choice(["main"]), default="main", required=False)
+@click.option(
+    "--scenario", required=True, help="Emission scenario for AIS projections."
+)
+@click.option(
+    "--climate-data-file",
+    type=_path,
+    metavar="PATH",
+    required=True,
+    help="NetCDF file containing FaIR GSAT members for one scenario.",
+)
+@click.option(
+    "--nsamps",
+    type=int,
+    help="Expected climate member count; validates the input without resampling.",
+)
+@click.option("--baseyear", type=int, default=2015, help="Sea-level baseline year.")
+@click.option("--pyear-start", type=int, default=2015, help="First output year.")
+@click.option("--pyear-end", type=int, default=2100, help="Last output year.")
+@click.option("--pyear-step", type=int, default=1, help="Output year interval.")
+@click.option(
+    "--scheme",
+    type=click.Choice(["prior", "posterior", "high_end"]),
+    default="posterior",
+    help="Configuration sampling and emulator error scheme.",
+)
+@click.option("--seed", type=int, default=42, help="Random number generator seed.")
+@click.option(
+    "--high-end-reference-file",
+    type=_path,
+    metavar="PATH",
+    help="Separate SSP585 GSAT file required by the high_end scheme.",
+)
+@click.option(
+    "--mean-model-file",
+    type=_path,
+    metavar="PATH",
+    default=str(ASSET_ROOT / "models/mean_model.pkl"),
+    help="Pre-trained mean model pickle file.",
+)
+@click.option(
+    "--lower-model-file",
+    type=_path,
+    metavar="PATH",
+    default=str(ASSET_ROOT / "models/lower_model.pkl"),
+    help="Pre-trained lower model pickle file.",
+)
+@click.option(
+    "--upper-model-file",
+    type=_path,
+    metavar="PATH",
+    default=str(ASSET_ROOT / "models/upper_model.pkl"),
+    help="Pre-trained upper model pickle file.",
+)
+@click.option(
+    "--posterior-samples-file",
+    type=_path,
+    metavar="PATH",
+    default=str(ASSET_ROOT / "posterior/posterior_samples.csv"),
+    help="CSV table of candidate model configurations.",
+)
+@click.option(
+    "--posterior-weights-file",
+    type=_path,
+    metavar="PATH",
+    default=str(ASSET_ROOT / "posterior/posterior_weights.npy"),
+    help="NumPy file of posterior sampling weights.",
+)
+@click.option(
+    "--output-ais-gslr-file",
+    type=_path,
+    metavar="PATH",
+    default="ais-gslr.nc",
+    help="Output NetCDF file for AIS global sea-level projections.",
+)
+@click.option(
+    "--output-diagnostics-file",
+    type=_path,
+    metavar="PATH",
+    default="lin26-diagnostics.nc",
+    help="Output NetCDF file for model diagnostics.",
+)
+def main(
+    command: str,
+    scenario: str,
+    climate_data_file: Path,
+    nsamps: int | None,
+    baseyear: int,
+    pyear_start: int,
+    pyear_end: int,
+    pyear_step: int,
+    scheme: str,
+    seed: int,
+    high_end_reference_file: Path | None,
+    mean_model_file: Path,
+    lower_model_file: Path,
+    upper_model_file: Path,
+    posterior_samples_file: Path,
+    posterior_weights_file: Path,
+    output_ais_gslr_file: Path,
+    output_diagnostics_file: Path,
+) -> None:
+    """Run the Lin et al. (2026) AIS projection workflow.
+
+    The optional COMMAND accepts "main" for existing FACTS invocations.
+    Options also accept LIN26_ environment variables, for example
+    LIN26_SCENARIO and LIN26_CLIMATE_DATA_FILE.
+    """
     # Pass named arguments through without changing sample order or units here.
     project(
-        scenario=args.scenario,
-        climate_file=args.climate_data_file,
+        scenario=scenario,
+        climate_file=climate_data_file,
         assets={
-            "mean_model": args.mean_model_file,
-            "lower_model": args.lower_model_file,
-            "upper_model": args.upper_model_file,
-            "posterior_samples": args.posterior_samples_file,
-            "posterior_weights": args.posterior_weights_file,
+            "mean_model": mean_model_file,
+            "lower_model": lower_model_file,
+            "upper_model": upper_model_file,
+            "posterior_samples": posterior_samples_file,
+            "posterior_weights": posterior_weights_file,
         },
-        output_file=args.output_ais_gslr_file,
-        diagnostics_file=args.output_diagnostics_file,
-        nsamps=args.nsamps,
-        baseyear=args.baseyear,
-        pyear_start=args.pyear_start,
-        pyear_end=args.pyear_end,
-        pyear_step=args.pyear_step,
-        scheme=args.scheme,
-        seed=args.seed,
-        high_end_reference_file=args.high_end_reference_file,
+        output_file=output_ais_gslr_file,
+        diagnostics_file=output_diagnostics_file,
+        nsamps=nsamps,
+        baseyear=baseyear,
+        pyear_start=pyear_start,
+        pyear_end=pyear_end,
+        pyear_step=pyear_step,
+        scheme=scheme,
+        seed=seed,
+        high_end_reference_file=high_end_reference_file,
     )
 
 

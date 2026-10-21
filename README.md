@@ -1,4 +1,4 @@
-# module-template
+# lin26-ais
 This repository is a starting point for a FACTS2 module. It has everything necessary to run a module in the FACTS2 framework *except* the actual science, which will be added by the module developer. If you are developing a FACTS2 module in Python, we recommend creating a repository for your module based off of this template. 
 
 This README contains an overview of the different components of this repository as well as instructions for adding and generating elements that will be specific to your module. 
