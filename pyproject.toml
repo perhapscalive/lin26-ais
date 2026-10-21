@@ -9,10 +9,15 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.4.2",
+    "netcdf4>=1.7.5",
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "scipy>=1.18.1",
+    "xarray>=2026.9.0",
 ]
 
 [project.scripts]
-module-template = "lin26-ais.cli:main"
+module-template = "lin26_ais.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.8.11,<0.9.0"]
