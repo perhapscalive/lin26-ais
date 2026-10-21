@@ -13,11 +13,13 @@ defines the output zero point and is separate from a physical drift correction.
 from __future__ import annotations
 
 import pickle
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
+from sklearn.exceptions import InconsistentVersionWarning
 
 from lin26_ais.io import (
     YEARS,
@@ -39,7 +41,10 @@ def _load_assets(paths: dict[str, Path]):
     models = []
     # These pickle files are trusted, pre-trained assets, not new model fits.
     for key in ("mean_model", "lower_model", "upper_model"):
-        with paths[key].open("rb") as stream:
+        with paths[key].open("rb") as stream, warnings.catch_warnings():
+            # The supplied assets use sklearn 1.4.0; the runtime pins 1.5.2.
+            # Suppress only the version notice while loading these model files.
+            warnings.simplefilter("ignore", InconsistentVersionWarning)
             models.append(pickle.load(stream))
     features = list(models[0].feature_names_in_)
     # All three models must see the same features in exactly the same order.

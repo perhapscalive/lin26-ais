@@ -103,7 +103,7 @@ def _path(value: str) -> Path:
     "--output-diagnostics-file",
     type=_path,
     metavar="PATH",
-    default="lin26-diagnostics.nc",
+    default="ais-diagnostics.nc",
     help="Output NetCDF file for model diagnostics.",
 )
 def main(
