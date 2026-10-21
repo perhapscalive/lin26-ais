@@ -183,3 +183,7 @@ cython_debug/
 data/
 
 .history/
+
+fair_temperature_runs
+
+outputs/

@@ -20,6 +20,18 @@ YEARS = np.arange(2015, 2101, dtype=np.int64)
 SCENARIOS = frozenset({"ssp119", "ssp126", "ssp245", "ssp370", "ssp585"})
 
 
+def validate_input_files(paths: dict[str, Path]) -> None:
+    """Check input directories and files before opening any projection inputs."""
+    errors = []
+    for name, path in paths.items():
+        if not path.parent.is_dir():
+            errors.append(f"{name}: input directory does not exist or is not a directory: {path.parent}")
+        elif not path.is_file():
+            errors.append(f"{name}: input file does not exist or is not a regular file: {path}")
+    if errors:
+        raise FileNotFoundError("Invalid projection inputs:\n" + "\n".join(errors))
+
+
 def normalize_scenario(value: str) -> str:
     """Normalize labels such as 'SSP2-4.5' to the supported key 'ssp245'."""
     scenario = re.sub(r"[^a-z0-9]", "", str(value).lower())

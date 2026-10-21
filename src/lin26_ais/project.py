@@ -19,7 +19,14 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 
-from lin26_ais.io import YEARS, normalize_scenario, output_years, read_fair_gsat, write_outputs
+from lin26_ais.io import (
+    YEARS,
+    normalize_scenario,
+    output_years,
+    read_fair_gsat,
+    validate_input_files,
+    write_outputs,
+)
 
 
 def _load_assets(paths: dict[str, Path]):
@@ -205,16 +212,19 @@ def project(
         raise ValueError("Output files must be distinct from each other and from every input file")
     if scheme not in {"prior", "posterior", "high_end"}:
         raise ValueError("scheme must be prior, posterior, or high_end")
-    # Validate run settings and the climate contract before loading large assets.
-    years = output_years(pyear_start, pyear_end, pyear_step, baseyear)
-    temperature, sample_ids = read_fair_gsat(climate_file, expected_scenario=scenario)
-    if nsamps is not None and (nsamps < 1 or nsamps != len(sample_ids)):
-        raise ValueError(f"nsamps={nsamps} does not match {len(sample_ids)} FAIR samples")
     if scheme == "high_end" and high_end_reference_file is None:
         raise ValueError("high_end requires --high-end-reference-file with SSP585 GSAT")
     if scheme != "high_end" and high_end_reference_file is not None:
         raise ValueError("--high-end-reference-file is only valid with high_end")
-
+    # Validate run settings and the climate contract before loading large assets.
+    years = output_years(pyear_start, pyear_end, pyear_step, baseyear)
+    input_paths = {"climate_file": climate_file, **assets}
+    if high_end_reference_file is not None:
+        input_paths["high_end_reference_file"] = high_end_reference_file
+    validate_input_files(input_paths)
+    temperature, sample_ids = read_fair_gsat(climate_file, expected_scenario=scenario)
+    if nsamps is not None and (nsamps < 1 or nsamps != len(sample_ids)):
+        raise ValueError(f"nsamps={nsamps} does not match {len(sample_ids)} FAIR samples")
     models, samples, weights = _load_assets(assets)
     rng = np.random.default_rng(seed)
     # Draw both index arrays in a fixed order regardless of the selected scheme.
