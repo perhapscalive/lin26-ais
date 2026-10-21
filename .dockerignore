@@ -37,3 +37,5 @@ Dockerfile
 .env
 data
 .history
+fair_temperature_runs/
+outputs/
