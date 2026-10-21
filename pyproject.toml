@@ -1,11 +1,10 @@
 [project]
-name = "module-template"
-version = "0.1.0"
-description = "Add your description here"
+name = "lin26-ais"
+version = "0.1.3"
+description = "Containerized application that generates estimates of Antarctic ice sheet contributions to future sea level change following the modeling approach developed by Lin et al. (2026)."
 readme = "README.md"
 authors = [
-    { name = "AUTHOR NAME", #Add your name here
-    email = "author@email.com" } #Add your email here
+    { name = "Yucheng Lin", email = "yucheng.lin@cityu.edu.hk" }
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -13,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-module-template = "module_template.cli:main"
+module-template = "lin26-ais.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.8.11,<0.9.0"]
