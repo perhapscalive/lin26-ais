@@ -14,16 +14,26 @@ Use a scenario-specific `gsat.nc` file containing annual temperatures for
 
 ### Setup
 
-Clone the repository and create a directory for the output files:
+Clone the repository and download the [input data from Zenodo](https://doi.org/10.5281/zenodo.23668489).
+The archive includes the pretrained emulator and posterior assets, FaIR GSAT
+projections for all five supported scenarios, the inputs used to generate those
+projections, and reproduction instructions. From the repository root, download
+and extract it before running the module:
 
 ```bash
 git clone https://github.com/perhapscalive/lin26-ais.git
 cd lin26-ais
+mkdir -p outputs/downloads
+curl -fL --retry 3 \
+  https://zenodo.org/api/records/23668489/files/lin26-ais-inputs.tgz/content \
+  -o outputs/downloads/lin26-ais-inputs.tgz
+tar -xzf outputs/downloads/lin26-ais-inputs.tgz
 mkdir -p outputs/docker_tests/ssp245_posterior
 ```
 
-Place the model and posterior assets in `data/`, and the FaIR temperature output
-in `fair_temperature_runs/output/`, using the following layout:
+Extracting the archive places the model and posterior assets in `data/`, and
+the FaIR temperature output in `fair_temperature_runs/output/`, using the
+following layout:
 
 ```text
 data/
@@ -41,9 +51,10 @@ fair_temperature_runs/
 ```
 
 These inputs are external assets and are not included in the Git repository or
-Docker image. A public download URL for the model and posterior assets has not
-yet been documented in this repository. Use the corresponding assets supplied
-with the Lin et al. (2026) emulator.
+Docker image. Keep the archive's directory structure when extracting it: the
+example commands below use these paths directly. See
+`fair_temperature_runs/REPRODUCE.md` in the archive to regenerate the GSAT
+files with the FaIR temperature module.
 
 The example commands use Bash on Linux or WSL Ubuntu and the published
 `linux/amd64` image. On WSL, start Docker Desktop on Windows and enable your

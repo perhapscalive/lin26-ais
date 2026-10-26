@@ -213,8 +213,12 @@ def project(
     if high_end_reference_file is not None:
         input_files.append(high_end_reference_file)
     output_paths = {output_file.resolve(), diagnostics_file.resolve()}
-    if len(output_paths) != 2 or output_paths.intersection(path.resolve() for path in input_files):
-        raise ValueError("Output files must be distinct from each other and from every input file")
+    if len(output_paths) != 2 or output_paths.intersection(
+        path.resolve() for path in input_files
+    ):
+        raise ValueError(
+            "Output files must be distinct from each other and from every input file"
+        )
     if scheme not in {"prior", "posterior", "high_end"}:
         raise ValueError("scheme must be prior, posterior, or high_end")
     if scheme == "high_end" and high_end_reference_file is None:
@@ -229,14 +233,18 @@ def project(
     validate_input_files(input_paths)
     temperature, sample_ids = read_fair_gsat(climate_file, expected_scenario=scenario)
     if nsamps is not None and (nsamps < 1 or nsamps != len(sample_ids)):
-        raise ValueError(f"nsamps={nsamps} does not match {len(sample_ids)} FAIR samples")
+        raise ValueError(
+            f"nsamps={nsamps} does not match {len(sample_ids)} FAIR samples"
+        )
     models, samples, weights = _load_assets(assets)
     rng = np.random.default_rng(seed)
     # Draw both index arrays in a fixed order regardless of the selected scheme.
     # Keeping that order matters to repeatability because rng is stateful and
     # also supplies screening draws and emulator errors later in the run.
     prior_indices = rng.choice(len(samples), len(sample_ids), replace=True)
-    posterior_indices = rng.choice(len(samples), len(sample_ids), replace=True, p=weights)
+    posterior_indices = rng.choice(
+        len(samples), len(sample_ids), replace=True, p=weights
+    )
     if scheme == "prior":
         indices = prior_indices
     elif scheme == "posterior":
@@ -272,7 +280,9 @@ def project(
     }
     if high_end_reference_file is not None:
         attrs["high_end_reference_source"] = str(high_end_reference_file)
-        attrs["emulator_error"] = "One 5-year exponentially correlated Gaussian realization per sample"
+        attrs["emulator_error"] = (
+            "One 5-year exponentially correlated Gaussian realization per sample"
+        )
     # io.write_outputs performs the final metres-to-millimetres conversion.
     write_outputs(
         output_file,
