@@ -1,0 +1,131 @@
+# Proposed facts-module-registry/lin26-ais/lin26_ais_module.yaml entry.
+# Input data archive: https://zenodo.org/records/23668489/files/lin26-ais-inputs.tgz
+# Stage the archive's data/models/ and data/posterior/ in the module-specific
+# input directory, preserving those two subdirectories.
+module_name: "lin26-ais"
+container_image: "ghcr.io/perhapscalive/lin26-ais:0.1.0"
+command: "main"
+uses_climate_file: true
+climate_file_required: true
+skip_fingerprint_params: true
+output_types: [global]
+
+arguments:
+  top_level:
+    - name: "scenario"
+      type: "str"
+      source: "metadata.scenario"
+      transform: "scenario_name"
+      help: "SSP emissions scenario."
+    - name: "nsamps"
+      type: "int"
+      source: "metadata.nsamps"
+      optional: true
+      help: "Must equal the number of FAIR climate samples."
+    - name: "baseyear"
+      type: "int"
+      source: "metadata.baseyear"
+      help: "Reference year, within 2015-2100."
+    - name: "pyear-start"
+      type: "int"
+      source: "metadata.pyear_start"
+      help: "First output year, within 2015-2100."
+    - name: "pyear-end"
+      type: "int"
+      source: "metadata.pyear_end"
+      help: "Last output year, within 2015-2100."
+    - name: "pyear-step"
+      type: "int"
+      source: "metadata.pyear_step"
+      help: "Uniform output year spacing."
+  options:
+    - name: "scheme"
+      type: "str"
+      source: "module_inputs.options.scheme"
+      default_value: "posterior"
+      allowed_values: ["prior", "posterior", "high_end"]
+      help: "Ice-sheet configuration ensemble; high_end needs an SSP585 reference file."
+    - name: "seed"
+      type: "int"
+      source: "module_inputs.options.seed"
+      default_value: 42
+      help: "Seed for configuration sampling and emulator-error realization."
+  inputs:
+    - name: "climate-data-file"
+      type: "file"
+      source: "module_inputs.inputs.climate_data_file"
+      climate_step_output: "output-gsat-file"
+      external_volume: true
+      help: "FAIR global surface temperature output, gsat.nc."
+      mount: {volume: "output", container_path: "/mnt/out", transform: "filename"}
+    - name: "high-end-reference-file"
+      type: "file"
+      source: "module_inputs.inputs.high_end_reference_file"
+      optional: true
+      filename: "ssp585/gsat.nc"
+      help: "Required only for high_end: FAIR SSP585 gsat.nc from a documented reference run."
+      # Copy the archived SSP585 file into the module-specific input directory
+      # at ssp585/gsat.nc when using high_end with another scenario.
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+    - name: "mean-model-file"
+      type: "file"
+      source: "module_inputs.inputs.mean_model_file"
+      filename: "models/mean_model.pkl"
+      help: "AISGBM mean emulator."
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+    - name: "lower-model-file"
+      type: "file"
+      source: "module_inputs.inputs.lower_model_file"
+      filename: "models/lower_model.pkl"
+      help: "AISGBM lower emulator."
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+    - name: "upper-model-file"
+      type: "file"
+      source: "module_inputs.inputs.upper_model_file"
+      filename: "models/upper_model.pkl"
+      help: "AISGBM upper emulator."
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+    - name: "posterior-samples-file"
+      type: "file"
+      source: "module_inputs.inputs.posterior_samples_file"
+      filename: "posterior/posterior_samples.csv"
+      help: "Calibration candidate configurations, also used for the prior."
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+    - name: "posterior-weights-file"
+      type: "file"
+      source: "module_inputs.inputs.posterior_weights_file"
+      filename: "posterior/posterior_weights.npy"
+      help: "Posterior probability of each candidate configuration."
+      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
+  outputs:
+    files:
+      - name: "output-ais-gslr-file"
+        type: "file"
+        source: "module_inputs.outputs.output_ais_gslr_file"
+        filename: "ais-gslr.nc"
+        output_type: "global"
+        pass_to_total: true
+        help: "Realized AIS contribution for FACTS global totaling."
+        mount: {volume: "output", container_path: "/mnt/out", transform: "filename"}
+      - name: "output-diagnostics-file"
+        type: "file"
+        source: "module_inputs.outputs.output_diagnostics_file"
+        filename: "ais-diagnostics.nc"
+        output_type: "global"
+        pass_to_total: false
+        help: "Model mean, marginal standard deviation and sampled input configurations."
+        mount: {volume: "output", container_path: "/mnt/out", transform: "filename"}
+
+volumes:
+  module_specific_input:
+    host_path: "module_inputs.input_paths.module_specific_input_dir"
+    container_path: "/mnt/module_specific_in"
+    help: "Emulator models, posterior data, and optional SSP585 reference GSAT."
+  shared_input:
+    host_path: "module_inputs.input_paths.shared_input_dir"
+    container_path: "/mnt/shared_in"
+    help: "Input data shared across modules."
+  output:
+    host_path: "module_inputs.output_paths.output_dir"
+    container_path: "/mnt/out"
+    help: "Directory for AIS projection and diagnostic files."
