@@ -188,11 +188,12 @@ This command uses the same host input layout and writes to
 `outputs/quick_tests/ssp245_posterior/`.
 
 The [Container workflow](.github/workflows/container.yaml) builds and checks
-pull requests and pushes to `main`; pushes also publish images. Matching release
+pull requests and pushes to `main`; pushes publish SHA-tagged images and update
+the project version tag (currently `0.1.0`) and `latest`. Matching release
 tags, such as `v0.1.0` for project version `0.1.0`, also publish versioned images to
 `ghcr.io/perhapscalive/lin26-ais`; stable releases update `latest`. The published
-`0.1.0` image is available without registry login. Pin the version tag when
-running a specific release.
+`0.1.0` image is available without registry login. Use a SHA tag or digest to pin
+an exact build.
 
 ## Results
 
