@@ -14,47 +14,39 @@ Use a scenario-specific `gsat.nc` file containing annual temperatures for
 
 ### Setup
 
-Clone the repository and download the [input data from Zenodo](https://doi.org/10.5281/zenodo.23668489).
-The archive includes the pretrained emulator and posterior assets, FaIR GSAT
-projections for all five supported scenarios, the inputs used to generate those
-projections, and reproduction instructions. From the repository root, download
-and extract it before running the module:
+Clone the repository and download the [input data from Zenodo](https://doi.org/10.5281/zenodo.24562702).
+The archive includes the pretrained JSON emulator models and posterior assets.
+From the repository root, download and extract it before running the module:
 
 ```bash
 git clone https://github.com/perhapscalive/lin26-ais.git
 cd lin26-ais
 mkdir -p outputs/downloads
 curl -fL --retry 3 \
-  https://zenodo.org/api/records/23668489/files/lin26-ais-inputs.tgz/content \
+  https://zenodo.org/api/records/24562702/files/lin26-ais-inputs.tgz/content \
   -o outputs/downloads/lin26-ais-inputs.tgz
 tar -xzf outputs/downloads/lin26-ais-inputs.tgz
 mkdir -p outputs/docker_tests/ssp245_posterior
 ```
 
-Extracting the archive places the model and posterior assets in `data/`, and
-the FaIR temperature output in `fair_temperature_runs/output/`, using the
-following layout:
+Extracting the archive places the model and posterior assets in `data/`:
 
 ```text
 data/
 ├── models/
-│   ├── mean_model.pkl
-│   ├── lower_model.pkl
-│   └── upper_model.pkl
+│   ├── mean_model.json
+│   ├── lower_model.json
+│   └── upper_model.json
 └── posterior/
     ├── posterior_samples.csv
     └── posterior_weights.npy
-fair_temperature_runs/
-└── output/
-    └── ssp245/
-        └── gsat.nc
 ```
 
 These inputs are external assets and are not included in the Git repository or
 Docker image. Keep the archive's directory structure when extracting it: the
-example commands below use these paths directly. See
-`fair_temperature_runs/REPRODUCE.md` in the archive to regenerate the GSAT
-files with the FaIR temperature module.
+example commands below use these paths directly. Generate GSAT inputs separately
+with the [FaIR temperature module](https://github.com/fact-sealevel/fair-temperature)
+and place each scenario's `gsat.nc` in `fair_temperature_runs/output/<scenario>/`.
 
 The example commands use Bash on Linux or WSL Ubuntu and the published
 `linux/amd64` image. On WSL, start Docker Desktop on Windows and enable your
@@ -106,19 +98,8 @@ UID and GID. Successful runs write two NetCDF files to
 | --- | --- |
 | `prior` | Sample configurations uniformly, with independent annual Gaussian emulator errors before smoothing. |
 | `posterior` | Sample configurations using the cached posterior weights, with independent annual Gaussian emulator errors before smoothing. This is the default. |
-| `high_end` | Screen posterior-weighted candidates using SSP585 warming in 2100, retain the highest 1% of predicted contributions, and use emulator errors with a five-year exponential correlation timescale. |
 
-For `high_end`, also place the SSP585 `gsat.nc` under
-`fair_temperature_runs/output/ssp585/`, set `--scheme high_end`, and add:
-
-```text
---high-end-reference-file /mnt/climate/ssp585/gsat.nc
-```
-
-The SSP585 file is used to select configurations; the projection still follows
-the temperature members in `--climate-data-file`. The reference-file option is
-valid only for `high_end`. Use a separate output directory for each scenario
-and scheme.
+Use a separate output directory for each scenario and scheme.
 
 ### Climate input and sample coupling
 
@@ -147,17 +128,16 @@ argument supports existing FACTS invocations.
 | --- | --- | --- |
 | `--scenario` | Emission scenario matching the climate file. | Required |
 | `--climate-data-file` | FaIR GSAT NetCDF for one scenario. | Required |
-| `--scheme` | `prior`, `posterior`, or `high_end`. | `posterior` |
+| `--scheme` | `prior` or `posterior`. | `posterior` |
 | `--seed` | Random seed for configuration sampling and emulator errors. | `42` |
 | `--nsamps` | Expected number of climate members; validates without resampling. | Inferred from input |
 | `--baseyear` | Sea-level baseline year, within 2015–2100. | `2015` |
 | `--pyear-start` | First output year. | `2015` |
 | `--pyear-end` | Last output year. | `2100` |
 | `--pyear-step` | Output interval in years. | `1` |
-| `--high-end-reference-file` | Separate SSP585 GSAT input, required for `high_end`. | None |
-| `--mean-model-file` | Pretrained mean model pickle. | `/mnt/module_specific_in/models/mean_model.pkl` |
-| `--lower-model-file` | Pretrained lower model pickle. | `/mnt/module_specific_in/models/lower_model.pkl` |
-| `--upper-model-file` | Pretrained upper model pickle. | `/mnt/module_specific_in/models/upper_model.pkl` |
+| `--mean-model-file` | Pretrained mean model JSON. | `/mnt/module_specific_in/models/mean_model.json` |
+| `--lower-model-file` | Pretrained lower model JSON. | `/mnt/module_specific_in/models/lower_model.json` |
+| `--upper-model-file` | Pretrained upper model JSON. | `/mnt/module_specific_in/models/upper_model.json` |
 | `--posterior-samples-file` | Candidate configuration CSV containing all model features. | `/mnt/module_specific_in/posterior/posterior_samples.csv` |
 | `--posterior-weights-file` | Normalized posterior weights, one per configuration. | `/mnt/module_specific_in/posterior/posterior_weights.npy` |
 | `--output-ais-gslr-file` | AIS global sea-level projection NetCDF. | `ais-gslr.nc` |
@@ -195,9 +175,9 @@ uv run --locked lin26-ais main \
   --climate-data-file fair_temperature_runs/output/ssp245/gsat.nc \
   --scheme posterior \
   --seed 42 \
-  --mean-model-file data/models/mean_model.pkl \
-  --lower-model-file data/models/lower_model.pkl \
-  --upper-model-file data/models/upper_model.pkl \
+  --mean-model-file data/models/mean_model.json \
+  --lower-model-file data/models/lower_model.json \
+  --upper-model-file data/models/upper_model.json \
   --posterior-samples-file data/posterior/posterior_samples.csv \
   --posterior-weights-file data/posterior/posterior_weights.npy \
   --output-ais-gslr-file outputs/quick_tests/ssp245_posterior/ais-gslr.nc \
@@ -208,8 +188,8 @@ This command uses the same host input layout and writes to
 `outputs/quick_tests/ssp245_posterior/`.
 
 The [Container workflow](.github/workflows/container.yaml) builds and checks
-pull requests and pushes to `main`. Matching release tags, such as `v0.1.0` for
-project version `0.1.0`, also publish versioned images to
+pull requests and pushes to `main`; pushes also publish images. Matching release
+tags, such as `v0.1.0` for project version `0.1.0`, also publish versioned images to
 `ghcr.io/perhapscalive/lin26-ais`; stable releases update `latest`. The published
 `0.1.0` image is available without registry login. Pin the version tag when
 running a specific release.

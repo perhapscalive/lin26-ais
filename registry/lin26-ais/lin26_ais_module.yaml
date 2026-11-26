@@ -1,5 +1,5 @@
 # Proposed facts-module-registry/lin26-ais/lin26_ais_module.yaml entry.
-# Input data archive: https://zenodo.org/records/23668489/files/lin26-ais-inputs.tgz
+# Input data archive: https://zenodo.org/records/24562702/files/lin26-ais-inputs.tgz
 # Stage the archive's data/models/ and data/posterior/ in the module-specific
 # input directory, preserving those two subdirectories.
 module_name: "lin26-ais"
@@ -43,8 +43,8 @@ arguments:
       type: "str"
       source: "module_inputs.options.scheme"
       default_value: "posterior"
-      allowed_values: ["prior", "posterior", "high_end"]
-      help: "Ice-sheet configuration ensemble; high_end needs an SSP585 reference file."
+      allowed_values: ["prior", "posterior"]
+      help: "Ice-sheet configuration ensemble."
     - name: "seed"
       type: "int"
       source: "module_inputs.options.seed"
@@ -58,31 +58,22 @@ arguments:
       external_volume: true
       help: "FAIR global surface temperature output, gsat.nc."
       mount: {volume: "output", container_path: "/mnt/out", transform: "filename"}
-    - name: "high-end-reference-file"
-      type: "file"
-      source: "module_inputs.inputs.high_end_reference_file"
-      optional: true
-      filename: "ssp585/gsat.nc"
-      help: "Required only for high_end: FAIR SSP585 gsat.nc from a documented reference run."
-      # Copy the archived SSP585 file into the module-specific input directory
-      # at ssp585/gsat.nc when using high_end with another scenario.
-      mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
     - name: "mean-model-file"
       type: "file"
       source: "module_inputs.inputs.mean_model_file"
-      filename: "models/mean_model.pkl"
+      filename: "models/mean_model.json"
       help: "AISGBM mean emulator."
       mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
     - name: "lower-model-file"
       type: "file"
       source: "module_inputs.inputs.lower_model_file"
-      filename: "models/lower_model.pkl"
+      filename: "models/lower_model.json"
       help: "AISGBM lower emulator."
       mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
     - name: "upper-model-file"
       type: "file"
       source: "module_inputs.inputs.upper_model_file"
-      filename: "models/upper_model.pkl"
+      filename: "models/upper_model.json"
       help: "AISGBM upper emulator."
       mount: {volume: "module_specific_input", container_path: "/mnt/module_specific_in"}
     - name: "posterior-samples-file"
@@ -120,7 +111,7 @@ volumes:
   module_specific_input:
     host_path: "module_inputs.input_paths.module_specific_input_dir"
     container_path: "/mnt/module_specific_in"
-    help: "Emulator models, posterior data, and optional SSP585 reference GSAT."
+    help: "Emulator models and posterior data."
   shared_input:
     host_path: "module_inputs.input_paths.shared_input_dir"
     container_path: "/mnt/shared_in"

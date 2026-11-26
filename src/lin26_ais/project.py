@@ -12,14 +12,11 @@ defines the output zero point and is separate from a physical drift correction.
 
 from __future__ import annotations
 
-import pickle
-import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
-from sklearn.exceptions import InconsistentVersionWarning
 
 from lin26_ais.io import (
     YEARS,
@@ -29,6 +26,7 @@ from lin26_ais.io import (
     validate_input_files,
     write_outputs,
 )
+from lin26_ais.model import GradientBoostingModel
 
 
 def _load_assets(paths: dict[str, Path]):
@@ -38,14 +36,10 @@ def _load_assets(paths: dict[str, Path]):
     feature order, and one normalized sampling probability per DataFrame row.
     The historical calibration that produced the weights is not repeated here.
     """
-    models = []
-    # These pickle files are trusted, pre-trained assets, not new model fits.
-    for key in ("mean_model", "lower_model", "upper_model"):
-        with paths[key].open("rb") as stream, warnings.catch_warnings():
-            # The supplied assets use sklearn 1.4.0; the runtime pins 1.5.2.
-            # Suppress only the version notice while loading these model files.
-            warnings.simplefilter("ignore", InconsistentVersionWarning)
-            models.append(pickle.load(stream))
+    models = [
+        GradientBoostingModel.load(paths[key])
+        for key in ("mean_model", "lower_model", "upper_model")
+    ]
     features = list(models[0].feature_names_in_)
     # All three models must see the same features in exactly the same order.
     if any(list(model.feature_names_in_) != features for model in models[1:]):
@@ -66,33 +60,6 @@ def _load_assets(paths: dict[str, Path]):
     ):
         raise ValueError("Posterior weights are invalid")
     return models, samples, weights
-
-
-def _select_high_end(samples, weights, mean_model, reference_2100, count, rng):
-    """Return configuration indices from the top 1% of screened predictions.
-
-    Screen 100 * count posterior-weighted candidates using sampled SSP585 warming
-    in 2100. Keep the count highest forced-run mean predictions. This selects
-    configurations; actual trajectories later use the requested scenario's
-    original climate members, rather than these screening temperature draws.
-    """
-    screen_count = 100 * count
-    indices = rng.choice(len(samples), screen_count, replace=True, p=weights)
-    # Retain the notebook-derived sorting of temperature draws. Configuration
-    # indices are drawn separately and are not sorted alongside temperatures.
-    temperatures = np.sort(rng.choice(reference_2100, screen_count, replace=True))
-    scores = np.empty(screen_count)
-    # Limit memory use by evaluating candidates in batches of at most 20,000.
-    for start in range(0, screen_count, 20_000):
-        stop = min(start + 20_000, screen_count)
-        features = samples.iloc[indices[start:stop]].reset_index(drop=True).copy()
-        features["Year"] = 2100
-        features["Climate Scenario"] = temperatures[start:stop]
-        scores[start:stop] = mean_model.predict(features)
-    # argpartition finds the largest count scores without fully sorting them.
-    # The returned indices are not ranked; duplicates remain possible because
-    # the candidate configurations were sampled with replacement.
-    return indices[np.argpartition(scores, -count)[-count:]]
 
 
 def _predict_raw(temperature_c, features, models):
@@ -126,7 +93,7 @@ def _predict_raw(temperature_c, features, models):
     return mean, std
 
 
-def _finalize(raw_mean, raw_std, scheme, baseyear, rng):
+def _finalize(raw_mean, raw_std, baseyear, rng):
     """Return one realized trajectory in metres.
 
     All returned arrays retain shape (n_samples, 86). Smoothing and subtraction
@@ -139,27 +106,13 @@ def _finalize(raw_mean, raw_std, scheme, baseyear, rng):
     # Subtracting S's first row makes each smoothed path relative to 2015.
     smooth = savgol_filter(np.eye(len(YEARS)), 19, 1, axis=0)
     transform = smooth - smooth[:1]
-    if scheme == "high_end":
-        # Match the extra smoothing pass used for the notebook's correlated
-        # high-end ensemble, then restore its 2015 zero point.
-        transform = smooth @ transform
-        transform -= transform[:1]
     # Rebase the entire linear operator to the requested sea-level baseline.
     # The temperature reference remains 2015 even when baseyear is different.
     transform -= transform[baseyear - 2015 : baseyear - 2015 + 1].copy()
 
-    if scheme == "high_end":
-        # Correlation decays exponentially with year separation: C[a,b] =
-        # exp(-abs(year_a-year_b)/5). Five years is an e-folding timescale,
-        # not a hard cutoff. Cholesky gives L such that C = L @ L.T.
-        lag = np.abs(YEARS[:, None] - YEARS[None, :])
-        factor = np.linalg.cholesky(np.exp(-lag / 5.0))
-        noise = rng.standard_normal(raw_mean.shape) @ factor.T
-    else:
-        # Prior and posterior use independent annual Gaussian errors before
-        # filtering. Smoothing and rebasing themselves introduce correlations.
-        factor = None
-        noise = rng.standard_normal(raw_mean.shape)
+    # Prior and posterior use independent annual Gaussian errors before
+    # filtering. Smoothing and rebasing themselves introduce correlations.
+    noise = rng.standard_normal(raw_mean.shape)
     # Draw one trajectory per climate/configuration pair, not 100 copies as in
     # notebook plotting. Row-vector trajectories require the operator transpose.
     realized = (raw_mean + noise * raw_std) @ transform.T
@@ -182,13 +135,12 @@ def project(
     pyear_step: int = 1,
     scheme: str = "posterior",
     seed: int = 42,
-    high_end_reference_file: Path | None = None,
 ) -> None:
     """Run a single SSP while preserving FaIR sample IDs and row order.
 
     nsamps is an optional count check, not a new ensemble size. Each input member
     is paired with one configuration sampled with replacement: uniformly for
-    prior, by cached likelihood weights for posterior, or by high-end screening.
+    prior or by cached likelihood weights for posterior.
     Computation always covers 2015-2100 annually; pyear_* selects exported years.
     The main file contains random realizations. The diagnostics file records
     the sampled configuration attached to each climate member.
@@ -197,8 +149,6 @@ def project(
     # Resolve paths before checking aliases so an output cannot overwrite either
     # another output or an input under a different relative-path spelling.
     input_files = [climate_file, *assets.values()]
-    if high_end_reference_file is not None:
-        input_files.append(high_end_reference_file)
     output_paths = {output_file.resolve(), diagnostics_file.resolve()}
     if len(output_paths) != 2 or output_paths.intersection(
         path.resolve() for path in input_files
@@ -206,17 +156,11 @@ def project(
         raise ValueError(
             "Output files must be distinct from each other and from every input file"
         )
-    if scheme not in {"prior", "posterior", "high_end"}:
-        raise ValueError("scheme must be prior, posterior, or high_end")
-    if scheme == "high_end" and high_end_reference_file is None:
-        raise ValueError("high_end requires --high-end-reference-file with SSP585 GSAT")
-    if scheme != "high_end" and high_end_reference_file is not None:
-        raise ValueError("--high-end-reference-file is only valid with high_end")
+    if scheme not in {"prior", "posterior"}:
+        raise ValueError("scheme must be prior or posterior")
     # Validate run settings and the climate contract before loading large assets.
     years = output_years(pyear_start, pyear_end, pyear_step, baseyear)
     input_paths = {"climate_file": climate_file, **assets}
-    if high_end_reference_file is not None:
-        input_paths["high_end_reference_file"] = high_end_reference_file
     validate_input_files(input_paths)
     temperature, sample_ids = read_fair_gsat(climate_file, expected_scenario=scenario)
     if nsamps is not None and (nsamps < 1 or nsamps != len(sample_ids)):
@@ -226,30 +170,17 @@ def project(
     models, samples, weights = _load_assets(assets)
     rng = np.random.default_rng(seed)
     # Draw both index arrays in a fixed order regardless of the selected scheme.
-    # Keeping that order matters to repeatability because rng is stateful and
-    # also supplies screening draws and emulator errors later in the run.
+    # Keep this order to preserve the configuration and emulator-error draws.
     prior_indices = rng.choice(len(samples), len(sample_ids), replace=True)
     posterior_indices = rng.choice(
         len(samples), len(sample_ids), replace=True, p=weights
     )
-    if scheme == "prior":
-        indices = prior_indices
-    elif scheme == "posterior":
-        indices = posterior_indices
-    else:
-        # Only high-end screening uses the separate SSP585 file. The projection
-        # still uses temperature from climate_file for every selected sample.
-        reference, _ = read_fair_gsat(
-            high_end_reference_file, expected_scenario="ssp585"
-        )
-        indices = _select_high_end(
-            samples, weights, models[0], reference[:, -1], len(sample_ids), rng
-        )
+    indices = prior_indices if scheme == "prior" else posterior_indices
     # Align configuration row k to climate member k, retaining original climate
     # IDs for export. The same configuration stays attached across all years.
     selected_features = samples.iloc[indices].reset_index(drop=True).copy()
     raw_mean, raw_std = _predict_raw(temperature, selected_features, models)
-    realized = _finalize(raw_mean, raw_std, scheme, baseyear, rng)
+    realized = _finalize(raw_mean, raw_std, baseyear, rng)
     # Select output years only after full-record smoothing, so annual and sparse
     # exports use the same trajectories and the same baseline subtraction.
     year_indices = years - 2015
@@ -266,11 +197,6 @@ def project(
         "emulator_error": "One Gaussian realization per member, smoothed and rebased",
         "drift_correction": "none",
     }
-    if high_end_reference_file is not None:
-        attrs["high_end_reference_source"] = str(high_end_reference_file)
-        attrs["emulator_error"] = (
-            "One 5-year exponentially correlated Gaussian realization per sample"
-        )
     # io.write_outputs performs the final metres-to-millimetres conversion.
     write_outputs(
         output_file,

@@ -46,37 +46,31 @@ def _path(value: str) -> Path:
 @click.option("--pyear-step", type=int, default=1, help="Output year interval.")
 @click.option(
     "--scheme",
-    type=click.Choice(["prior", "posterior", "high_end"]),
+    type=click.Choice(["prior", "posterior"]),
     default="posterior",
     help="Configuration sampling and emulator error scheme.",
 )
 @click.option("--seed", type=int, default=42, help="Random number generator seed.")
 @click.option(
-    "--high-end-reference-file",
-    type=_path,
-    metavar="PATH",
-    help="Separate SSP585 GSAT file required by the high_end scheme.",
-)
-@click.option(
     "--mean-model-file",
     type=_path,
     metavar="PATH",
-    default=str(ASSET_ROOT / "models/mean_model.pkl"),
-    help="Pre-trained mean model pickle file.",
+    default=str(ASSET_ROOT / "models/mean_model.json"),
+    help="Pre-trained mean model JSON file.",
 )
 @click.option(
     "--lower-model-file",
     type=_path,
     metavar="PATH",
-    default=str(ASSET_ROOT / "models/lower_model.pkl"),
-    help="Pre-trained lower model pickle file.",
+    default=str(ASSET_ROOT / "models/lower_model.json"),
+    help="Pre-trained lower model JSON file.",
 )
 @click.option(
     "--upper-model-file",
     type=_path,
     metavar="PATH",
-    default=str(ASSET_ROOT / "models/upper_model.pkl"),
-    help="Pre-trained upper model pickle file.",
+    default=str(ASSET_ROOT / "models/upper_model.json"),
+    help="Pre-trained upper model JSON file.",
 )
 @click.option(
     "--posterior-samples-file",
@@ -117,7 +111,6 @@ def main(
     pyear_step: int,
     scheme: str,
     seed: int,
-    high_end_reference_file: Path | None,
     mean_model_file: Path,
     lower_model_file: Path,
     upper_model_file: Path,
@@ -152,7 +145,6 @@ def main(
         pyear_step=pyear_step,
         scheme=scheme,
         seed=seed,
-        high_end_reference_file=high_end_reference_file,
     )
 
 
